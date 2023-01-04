@@ -16,6 +16,9 @@ class Player:
 
     :param hand: Player's hand of cards
     :type hand: List[Card]
+
+    :param blocked: Whether or not the player will take part in their next turn
+    :type blocked: boolean
     """
     def __init__(self, name: str, cards: Optional[List[Card]] = None):
         """Initialises the player class"""
@@ -25,6 +28,7 @@ class Player:
             self._hand = cards
 
         self._name = name
+        self._blocked = False
 
     @property
     def hand(self) -> List[Card]:
@@ -33,6 +37,10 @@ class Player:
     @property
     def name(self):
         return self._name
+
+    @property
+    def blocked(self):
+        return self._blocked
 
     def add_card(self, card: 'Card') -> None:
         """Adds a card to the player's hand"""
@@ -47,3 +55,9 @@ class Player:
             return self._hand.pop(card_index)
         except IndexError:
             raise WrongCardIndexError()
+
+    def block_next_turn(self):
+        self._blocked = True
+
+    def unblock(self):
+        self._blocked = False
