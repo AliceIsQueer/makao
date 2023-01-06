@@ -55,7 +55,7 @@ class Card:
         Returns False otherwise.
         """
         if (other.value == self.value or other.suit == self.suit
-           or self.value == 12):
+           or self.value == 12 or other.value == 12):
             return True
         return False
 
@@ -67,7 +67,7 @@ class Card:
                  'Nine', 'Ten', 'Jack', 'Queen', 'King', 'Ace']
         suits = ['Spades', 'Diamonds', 'Clubs', 'Hearts']
 
-        return f'{names[self.value - 1]} of {suits[self.suit - 1]}'
+        return f'{names[self.value - 2]} of {suits[self.suit - 1]}'
 
     def __eq__(self, other: 'Card'):
         return self.suit == other.suit and self.value == other.value
