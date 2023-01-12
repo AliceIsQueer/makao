@@ -9,6 +9,10 @@ class Opponent(Player):
         super().__init__(name, cards)
 
     def get_optimal_card(self, card_stack: 'CardStack') -> int:
+        """
+        Returns the index of a card to be played by the opponent
+        Returns -1 if the opponent should skip their turn
+        """
         for index, card in enumerate(self.hand):
             if card.can_put_card(card_stack.top_card):
                 return index
