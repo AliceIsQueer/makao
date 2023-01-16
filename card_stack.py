@@ -34,5 +34,8 @@ class CardStack:
         """Adds a card on top of the card stack"""
         self._cards.append(card)
 
-    def trigger_top_effect(self, next_player: 'Player', prev_player: 'Player'):
+    def trigger_top_effect(self, prev_player: 'Player', next_player: 'Player'):
+        """Triggers the effect based on the rules of makao"""
+        if self.top_card.value == 4:
+            next_player.block_next_turn()
         pass
