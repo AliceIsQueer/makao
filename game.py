@@ -1,4 +1,4 @@
-from card_stack import CardStack
+from card_stack import CardStack, KingOfSpadesException, AceException
 from opponent import Opponent
 from player import Player, Status, WrongCardIndexError
 from main_player import MainPlayer
@@ -121,36 +121,39 @@ class Game:
         return next
 
     def handle_turn(self) -> None:
-        playing = self.get_current_player()
+        player = self.get_current_player()
 
         clear_messages = False
-        if playing.status_effect != Status.NOEFFECT:
-            self.prepare_special_turn()
+        if player.status_effect != Status.NOEFFECT:
+            self.prepare_special_turn(player)
 
-        if isinstance(playing, MainPlayer):
+        if isinstance(player, MainPlayer):
             clear_messages = True
 
-        self.handle_player_turn()
+        self.handle_player_turn(player)
 
-        if playing.blocked_turns > 0:
-            playing.decrement_block()
+        if (self.stack.top_card.suit == Suits.SPADES and
+           self.stack.top_card.value == 13):
+            clear_messages = False
 
-        if playing.cards_to_draw > 0:
-            self.main_player.add_special_message(f'{playing} drew {playing.cards_to_draw} cards') # NOQA
-            for _ in range(playing.cards_to_draw):
-                playing.add_card(self.deck.draw_card())
-            self.main_player.add_special_message(f' (at {len(playing.hand)} cards) \n') # NOQA
-            playing.reset_cards_to_draw()
+        if player.blocked_turns > 0:
+            player.decrement_block()
+
+        if player.cards_to_draw > 0:
+            self.main_player.add_special_message(f'{player} drew {player.cards_to_draw} cards') # NOQA
+            for _ in range(player.cards_to_draw):
+                player.add_card(self.deck.draw_card())
+            self.main_player.add_special_message(f' (at {len(player.hand)} cards) \n') # NOQA
+            player.remove_status_effect()
 
         self.progress_turn(clear_messages)
 
-    def handle_player_turn(self) -> None:
+    def handle_player_turn(self, player) -> None:
         while True:
             try:
-                moves = self.get_player_input()
-                player = self.get_current_player()
+                moves = self.get_player_input(player)
                 if isinstance(player, Opponent):
-                    self.add_opponent_status(moves)
+                    self.add_opponent_status(player, moves)
 
                 if max(moves) > len(player.hand) or min(moves) < 0:
                     raise ValueError
@@ -203,9 +206,15 @@ class Game:
     def handle_regular_turn(self, player, moves):
         prev_player = self.prev_player(player)
         next_player = self.next_player(player)
-        self.stack.add_cards_on_top(player.remove_cards(moves),
-                                    prev_player, next_player,
-                                    self.players)
+        try:
+            self.stack.add_cards_on_top(player.remove_cards(moves),
+                                        prev_player, next_player,
+                                        self.players)
+        except KingOfSpadesException:
+            self.special_king_of_spades_interaction(prev_player)
+        except AceException:
+            new_suit = self.get_player_ace_suit(player)
+            self.stack.set_forced_suit(new_suit)
 
     def handle_pass(self, player: 'Player'):
         card = self.deck.draw_card()
@@ -219,15 +228,15 @@ class Game:
         if len(moves) == 1 and moves[0] == len(player.hand):
             return
 
-        card = player.hand[moves[0]].value
-        if card not in player.allowed_cards:
+        card = player.hand[moves[0]]
+        if card.value not in player.allowed_cards:
             raise InvalidStatusTransferError
 
         prev_player = self.prev_player(player)
         next_player = self.next_player(player)
 
         if player.status_effect == Status.DRAW5:
-            if card.suit in [Suits.CLUBS, Suits.Diamonds]:
+            if card.suit in [Suits.CLUBS, Suits.DIAMONDS]:
                 player.remove_status_effect()
             else:
                 if self.stack.top_card.suit == Suits.SPADES:
@@ -240,17 +249,16 @@ class Game:
                                     prev_player, next_player,
                                     self.players)
 
-    def get_player_input(self) -> List[int]:
-        if isinstance(self.get_current_player(), (MainPlayer)):
-            sentence = self.ask_player_input()
+    def get_player_input(self, player) -> List[int]:
+        if isinstance(player, MainPlayer):
+            sentence = self.ask_player_input(player)
             moves = [int(card) - 1 for card in input(sentence).split(' ')]
         else:
-            moves = [self.get_current_player().get_optimal_card(self.stack)]
+            moves = [player.get_optimal_card(self.stack)]
         return moves
 
-    def ask_player_input(self):
+    def ask_player_input(self, player):
         os.system('clear')
-        player = self._main_player
 
         additional_information = (self._main_player.special_message
                                   + self._main_player.error_message)
@@ -261,7 +269,7 @@ class Game:
                            player.status_effect == Status.NOEFFECT else '')
 
         first_part = str(self.stack) + '\n'
-        second_part = self.get_current_player().get_hand_description()
+        second_part = player.get_hand_description()
         third_part = (f'{len(player.hand)+1} '
                       f'- Pass your turn{special_message}\n')
         fourth_part = 'Your option is: '
@@ -271,8 +279,7 @@ class Game:
 
         return sentence
 
-    def add_opponent_status(self, card_indexes) -> None:
-        opponent = self.get_current_player()
+    def add_opponent_status(self, opponent, card_indexes) -> None:
         main_player = self._main_player
         if card_indexes[0] == len(opponent.hand):
             message = ''
@@ -299,8 +306,7 @@ class Game:
                                             f'played {cards_string}'
                                             f'({hand_size} cards left)\n')
 
-    def prepare_special_turn(self):
-        playing = self.get_current_player()
+    def prepare_special_turn(self, playing):
         if playing.status_effect == Status.BLOCKED:
             message = ('' if playing.blocked_turns == 1
                        else f' for {playing.blocked_turns} turns')
@@ -340,3 +346,28 @@ class Game:
 
             self.main_player.add_special_message(block_message)
             playing.set_allowed_cards([13])
+
+    def special_king_of_spades_interaction(self, player):
+        self.prepare_special_turn(player)
+        moves = self.get_player_input(player)
+        self.handle_effect_turn(player, moves)
+        if player.cards_to_draw > 0:
+            self.main_player.add_special_message(f'{player} drew {player.cards_to_draw} cards') # NOQA
+            for _ in range(player.cards_to_draw):
+                player.add_card(self.deck.draw_card())
+            self.main_player.add_special_message(f' (at {len(player.hand)} cards) \n') # NOQA
+            player.remove_status_effect()
+            print(self.ask_player_input(self.main_player))
+
+    def get_player_ace_suit(self, player):
+        suits = ['\u2660', '\u2666', '\u2663', '\u2665']
+        if isinstance(player, MainPlayer):
+            suits_string = ''
+            for index, suit in enumerate(suits):
+                suits_string += f'{index+1} - {suit}\n'
+            suit = int(input((f'Pick a suit:\n{suits_string}')))
+            return suit
+        elif isinstance(player, Opponent):
+            suit = player.get_optimal_suit()
+            self.main_player.add_special_message(f'{player} has picked {suits[suit-1]} as the new suit\n') # NOQA
+            return suit
