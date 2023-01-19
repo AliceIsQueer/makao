@@ -32,7 +32,7 @@ def test_card_stack_block():
     all_players = [next_player, prev_player]
     stack.add_cards_on_top([four_of_hearts], prev_player,
                            next_player, all_players)
-    assert Status.BLOCKED in next_player.status_effects
+    assert next_player.status_effect == Status.BLOCKED
 
 
 def test_card_stack_add2():
@@ -43,7 +43,7 @@ def test_card_stack_add2():
     all_players = [next_player, prev_player]
     stack.add_cards_on_top([two_of_hearts], prev_player,
                            next_player, all_players)
-    assert Status.DRAW2 in next_player.status_effects
+    assert next_player.status_effect == Status.DRAW2OR3
 
 
 def test_card_stack_add3():
@@ -54,7 +54,7 @@ def test_card_stack_add3():
     all_players = [next_player, prev_player]
     stack.add_cards_on_top([three_of_hearts], prev_player,
                            next_player, all_players)
-    assert Status.DRAW3 in next_player.status_effects
+    assert next_player.status_effect == Status.DRAW2OR3
 
 
 def test_card_stack_add5_prev():
@@ -65,7 +65,7 @@ def test_card_stack_add5_prev():
     all_players = [next_player, prev_player]
     stack.add_cards_on_top([king_of_spades], prev_player,
                            next_player, all_players)
-    assert Status.DRAW5 in prev_player.status_effects
+    assert prev_player.status_effect == Status.DRAW5
 
 
 def test_card_stack_add5_next():
@@ -76,4 +76,4 @@ def test_card_stack_add5_next():
     all_players = [next_player, prev_player]
     stack.add_cards_on_top([king_of_hearts], prev_player,
                            next_player, all_players)
-    assert Status.DRAW5 in next_player.status_effects
+    assert next_player.status_effect == Status.DRAW5
