@@ -1,4 +1,5 @@
 from card_stack import CardStack
+from card import Card
 from card_stack import KingOfSpadesException, AceException, JackException
 from opponent import Opponent
 from player import Player, Status, WrongCardIndexError
@@ -168,7 +169,6 @@ class Game:
 
         player.set_played_jack(False)
 
-
         self.progress_turn(clear_messages)
 
     def handle_player_turn(self, player) -> None:
@@ -252,10 +252,31 @@ class Game:
 
     def handle_pass(self, player: 'Player'):
         card = self.deck.draw_card()
-
         player.add_card(card)
+
+        if self.first_save(player, card):
+            self.handle_regular_turn(player, [len(player.hand)-1])
+            # self.stack.add_cards_on_top([card])
+            # self.stack.trigger_top_effect(self.prev_player(player),
+            #                               self.next_player(player),
+            #                               self.players)
         if isinstance(player, Opponent):
             self.add_opponent_status(player, -1)
+
+    def first_save(self, player: 'Player', card: 'Card'):
+        # if player.status_effect == 
+        if self.stack.is_valid_combo([card]):
+            decision = self.get_player_first_save_input(player, card)
+            if decision == 1:
+                return True
+        return False
+
+    def get_player_first_save_input(self, player, card):
+        if isinstance(player, MainPlayer):
+            ans = input(f'You drew a {card}. Play it? (y/n): ')
+            return 1 if ans == 'y' else 0
+        else:
+            return 1
 
     def handle_effect_turn(self, player: 'Player', moves):
         if len(moves) > 1 or moves[0] > len(player.hand):
@@ -297,7 +318,8 @@ class Game:
             self.stack.set_forced_value(new_value)
             for play in self.players:
                 play.set_allowed_cards([new_value])
-
+        except KingOfSpadesException:
+            pass
         if len(player.hand) == 0:
             self.get_winner(player)
 
