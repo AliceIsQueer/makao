@@ -77,12 +77,11 @@ class CardStack:
                         if card.suit != self.forced_suit:
                             return False
                     else:
-                        if (card.value == self.forced_value or
-                           (card.value == self.top_card.value and card.value == 11)):
-                            continue
-                        else:
+                        if not (card.value == self.forced_value or
+                                (card.value == self.top_card.value and
+                                 card.value == 11)):
                             return False
-                        
+
             else:
                 if not card.can_put_card(cards[index-1]):
                     return False

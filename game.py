@@ -189,7 +189,7 @@ class Game:
 
                 if len(moves) > 1 and len(player.hand) in moves:
                     raise ValueError
-                
+
                 hand = [player.hand[move] for move in moves]
 
                 if not self.stack.is_valid_combo(hand):
@@ -224,7 +224,8 @@ class Game:
         self.increment_turn()
         self.handle_turn()
 
-    def handle_regular_turn(self, player: 'Player', moves, prev_player=None, next_player=None):
+    def handle_regular_turn(self, player: 'Player', moves,
+                            prev_player=None, next_player=None):
         if prev_player is None:
             prev_player = self.prev_player(player)
         if next_player is None:
@@ -262,15 +263,10 @@ class Game:
 
         if self.first_save(player, card):
             self.handle_regular_turn(player, [len(player.hand)-1])
-            # self.stack.add_cards_on_top([card])
-            # self.stack.trigger_top_effect(self.prev_player(player),
-            #                               self.next_player(player),
-            #                               self.players)
         if isinstance(player, Opponent):
             self.add_opponent_status(player, -1)
 
     def first_save(self, player: 'Player', card: 'Card'):
-        # if player.status_effect == 
         if self.stack.is_valid_combo([card]):
             decision = self.get_player_first_save_input(player, card)
             if decision == 1:
@@ -311,24 +307,8 @@ class Game:
                     player.transfer_effect(prev_player)
         else:
             player.transfer_effect(next_player)
-        
+
         self.handle_regular_turn(player, moves, prev_player, next_player)
-        # try:
-        #     cards = [player.hand[move] for move in moves]
-        #     if isinstance(player, Opponent):
-        #         self.add_opponent_status(player, cards)
-        #     self.stack.add_cards_on_top(player.remove_cards(moves),
-        #                                 prev_player, next_player,
-        #                                 self.players)
-        # except JackException:
-        #     new_value = self.get_player_jack_card(player)
-        #     self.stack.set_forced_value(new_value)
-        #     for play in self.players:
-        #         play.set_allowed_cards([new_value])
-        # except KingOfSpadesException:
-        #     pass
-        # if len(player.hand) == 0:
-        #     self.get_winner(player)
 
     def get_player_input(self, player) -> List[int]:
         if isinstance(player, MainPlayer):
