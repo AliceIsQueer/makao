@@ -136,7 +136,7 @@ class Game:
         player = self.get_current_player()
 
         if player.won:
-            self.progress_turn()
+            self.progress_turn(False)
             return
 
         clear_messages = False
@@ -168,14 +168,13 @@ class Game:
 
         player.set_played_jack(False)
 
+
         self.progress_turn(clear_messages)
 
     def handle_player_turn(self, player) -> None:
         while True:
             try:
                 moves = self.get_player_input(player)
-                if isinstance(player, Opponent):
-                    self.add_opponent_status(player, moves)
 
                 if max(moves) > len(player.hand) or min(moves) < 0:
                     raise ValueError
@@ -190,7 +189,10 @@ class Game:
 
                 if len(moves) > 1 and len(player.hand) in moves:
                     raise ValueError
+                
+                hand = [player.hand[move] for move in moves]
 
+                if not self.stack.is_valid_combo(hand):
                     raise InvalidTopCardError
 
                 self.handle_regular_turn(player, moves)
@@ -226,28 +228,34 @@ class Game:
         prev_player = self.prev_player(player)
         next_player = self.next_player(player)
         try:
+            cards = [player.hand[move] for move in moves]
             self.stack.add_cards_on_top(player.remove_cards(moves),
                                         prev_player, next_player,
                                         self.players)
-
-            if len(player.hand) == 0:
-                self.get_winner(player)
+            self.add_opponent_status(player, cards)
         except KingOfSpadesException:
+            self.add_opponent_status(player, cards)
             self.special_king_of_spades_interaction(prev_player)
         except AceException:
+            self.add_opponent_status(player, cards)
             new_suit = self.get_player_ace_suit(player)
             self.stack.set_forced_suit(new_suit)
         except JackException:
+            self.add_opponent_status(player, cards)
             new_value = self.get_player_jack_card(player)
             player.set_played_jack(True)
             self.stack.set_forced_value(new_value)
-            for player in self.players:
-                player.set_allowed_cards([new_value])
+            for play in self.players:
+                play.set_allowed_cards([new_value])
+        if len(player.hand) == 0:
+            self.get_winner(player)
 
     def handle_pass(self, player: 'Player'):
         card = self.deck.draw_card()
 
         player.add_card(card)
+        if isinstance(player, Opponent):
+            self.add_opponent_status(player, -1)
 
     def handle_effect_turn(self, player: 'Player', moves):
         if len(moves) > 1 or moves[0] > len(player.hand):
@@ -278,16 +286,17 @@ class Game:
             player.transfer_effect(next_player)
 
         try:
+            cards = [player.hand[move] for move in moves]
+            if isinstance(player, Opponent):
+                self.add_opponent_status(player, cards)
             self.stack.add_cards_on_top(player.remove_cards(moves),
                                         prev_player, next_player,
                                         self.players)
         except JackException:
             new_value = self.get_player_jack_card(player)
             self.stack.set_forced_value(new_value)
-            for player in self.players:
-                player.set_allowed_cards([new_value])
-            if len(player.hand) == 0:
-                self.get_winner(player)
+            for play in self.players:
+                play.set_allowed_cards([new_value])
 
         if len(player.hand) == 0:
             self.get_winner(player)
@@ -323,11 +332,11 @@ class Game:
 
         return sentence
 
-    def add_opponent_status(self, opponent, card_indexes) -> None:
+    def add_opponent_status(self, opponent, cards) -> None:
         main_player = self._main_player
-        if card_indexes[0] == len(opponent.hand):
+        if cards == -1:
             message = ''
-            if opponent.allowed_cards == []:
+            if opponent.allowed_cards == [] or 11 in opponent.allowed_cards:
                 message = 'and draws a card '
 
             hand_size = len(opponent.hand)
@@ -335,8 +344,6 @@ class Game:
                                             f'{message}'
                                             f'({hand_size} cards left)\n')
         else:
-            cards = [opponent.hand[index] for index in card_indexes]
-
             cards_played = [str(card) for card in cards]
 
             cards_string = ''
@@ -438,7 +445,8 @@ class Game:
 
     def get_winner(self, player: 'Player'):
         player.win_game()
-        self._winners.append(player)
+        if player not in self.winners:
+            self._winners.append(player)
 
     def finish_game(self):
         os.system('clear')
@@ -446,7 +454,11 @@ class Game:
         self.main_player.clear_special_message()
         ends = ['st', 'nd', 'rd', 'th']
         print('The game is finished!\n')
-        for place, player in enumerate(self.players):
+        for place, player in enumerate(self.winners):
             print(f'{place+1}{ends[place]} place - {player}')
+
+        for player in self.players:
+            if player not in self.winners:
+                print(f'{player} lost :( \n')
 
         return
