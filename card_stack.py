@@ -24,8 +24,17 @@ class CardStack:
 
     :param cards: The cards on the card pile
     :type cards: List['Card']
+
+    :param forced_suit: The suit that is required to be played 
+    after the Ace special interaction
+    :type forced_suit: int
+
+    :param forced_value: The value that is required to be played 
+    after the Jack special interaction
+    :type forced_suit: int
+
     """
-    def __init__(self, cards: Optional[List['Card']] = None):
+    def __init__(self, cards: Optional[List['Card']] = None) -> None:
         """Initialises the CardStack class"""
         if not cards:
             self._cards = []
@@ -40,11 +49,11 @@ class CardStack:
         return self._cards
 
     @property
-    def forced_suit(self):
+    def forced_suit(self) -> int:
         return self._forced_suit
 
     @property
-    def forced_value(self):
+    def forced_value(self) -> int:
         return self._forced_value
 
     @property
@@ -52,19 +61,27 @@ class CardStack:
         """Returns the card at the top of the card stack"""
         return self.cards[-1]
 
-    def set_forced_suit(self, suit):
+    def set_forced_suit(self, suit: int) -> None:
+        """Forces a card becuase of the Ace interaction"""
         self._forced_suit = suit
 
-    def reset_forced_suit(self):
+    def reset_forced_suit(self) -> None:
+        """Resets the suit after the Ace interaction"""
         self._forced_suit = None
 
-    def set_forced_value(self, value):
+    def set_forced_value(self, value: int) -> None:
+        """Forces a value because of the Jack interaction"""
         self._forced_value = value
 
-    def reset_forced_value(self):
+    def reset_forced_value(self) -> None:
+        """Resets the value after the Jack interaction"""
         self._forced_value = None
 
     def is_valid_combo(self, cards: List['Card']) -> bool:
+        """
+        Checks if the given card sequence is valid 
+        according to the rules of makao
+        """
         for index, card in enumerate(cards):
             if index == 0:
                 if self.forced_suit is None and self.forced_value is None:
@@ -88,11 +105,12 @@ class CardStack:
 
         return True
 
-    def __str__(self):
+    def __str__(self) -> str:
         """Gives a brief description of the card on top of the stack"""
         return f'The card at the top is {self.top_card}'
 
-    def remove_bottom_cards(self):
+    def remove_bottom_cards(self) -> None:
+        """Removes all the bottom cards after the deck has ran out"""
         removed = self.cards[0:-1]
         self._cards = self.cards[-1:]
         return removed
@@ -100,9 +118,9 @@ class CardStack:
     def add_cards_on_top(self, cards: List['Card'],
                          prev_player: 'Player' = None,
                          next_player: 'Player' = None,
-                         all_players: List['Player'] = None):
-        """Adds a card on top of the card stack"""
+                         all_players: List['Player'] = None) -> None:
 
+        """Adds a card on top of the card stack"""
         for card in cards:
             self._cards.append(card)
             if self.forced_suit is not None:
@@ -110,8 +128,12 @@ class CardStack:
             self.trigger_top_effect(prev_player, next_player, all_players)
 
     def trigger_top_effect(self, prev_player: 'Player',
-                           next_player: 'Player', all_players: List['Player']):
-        """Triggers the effect based on the rules of makao"""
+                           next_player: 'Player',
+                           all_players: List['Player']) -> None:
+        """
+        Triggers the effect special effect of a card
+        based on the rules of makao
+        """
         if prev_player is None or next_player is None:
             return
 
