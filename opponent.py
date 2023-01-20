@@ -13,9 +13,10 @@ class Opponent(Player):
         Returns the index of a card to be played by the opponent
         Returns -1 if the opponent should skip their turn
         """
+        self.set_said_makao()
         for index, card in enumerate(self.hand):
             if self.allowed_cards != []:
-                if self.allowed_cards == card.value:
+                if card.value in self.allowed_cards:
                     return index
             else:
                 if (card_stack.is_valid_combo([card])):
