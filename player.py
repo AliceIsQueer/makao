@@ -39,8 +39,9 @@ class Player:
         self._name = name
         self._total_blocked_turns = 0
         self._blocked_turns = 0
+        self._cards_to_draw = 0
         self._status_effect = Status.NOEFFECT
-        self._allowed_card = -1
+        self._allowed_cards = []
 
     @property
     def hand(self) -> List[Card]:
@@ -63,9 +64,13 @@ class Player:
         return self._status_effect
 
     @property
-    def allowed_card(self):
-        return self._allowed_card 
-    
+    def allowed_cards(self):
+        return self._allowed_cards
+
+    @property
+    def cards_to_draw(self):
+        return self._cards_to_draw
+
     def add_card(self, card: 'Card') -> None:
         """Adds a card to the player's hand"""
         self._hand.append(card)
@@ -104,7 +109,15 @@ class Player:
         if self.blocked_turns == 0:
             self._total_blocked_turns = 0
             self._status_effect = Status.NOEFFECT
-            self._allowed_card = -1
+            self._allowed_cards = []
+
+    def increase_cards_to_draw(self, num):
+        self._cards_to_draw += num
+
+    def reset_cards_to_draw(self):
+        self._cards_to_draw = 0
+        self._status_effect = Status.NOEFFECT
+        self._allowed_cards = []
 
     def get_hand_description(self):
         card_list = ''
@@ -117,10 +130,22 @@ class Player:
 
     def remove_status_effect(self) -> List[int]:
         self._status_effect = Status.NOEFFECT
+        self._total_blocked_turns = 0
+        self._blocked_turns = 0
+        self._cards_to_draw = 0
 
     def transfer_effect(self, other: 'Player'):
         other.set_status_effect(self.status_effect)
+        other._total_blocked_turns = self._total_blocked_turns
+        other._blocked_turns = self._blocked_turns
+        other._cards_to_draw = self._cards_to_draw
         self.remove_status_effect()
 
-    def set_allowed_card(self, card_value):
-        self._allowed_card = card_value
+    def set_allowed_cards(self, card_values):
+        self._allowed_cards = card_values
+
+    def clear_allowed_card(self):
+        self._allowed_cards.clear()
+
+    def __str__(self):
+        return self.name
