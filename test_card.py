@@ -1,4 +1,5 @@
 from card import Card, Suits, InvalidSuitError, ValueNotInRangeError
+from colorama import Fore, Style
 import pytest
 
 
@@ -20,4 +21,4 @@ def test_card_init_invaid_value():
 
 def test_card_name():
     two_of_spades = Card(Suits.SPADES, 2)
-    assert str(two_of_spades) == '2'+'\u2660'
+    assert str(two_of_spades) == '2' + Fore.BLACK + '\u2660' + Style.RESET_ALL
