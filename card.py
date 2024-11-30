@@ -68,3 +68,6 @@ class Card:
         suits = ['Spades', 'Diamonds', 'Clubs', 'Hearts']
 
         return f'{names[self.value - 1]} of {suits[self.suit - 1]}'
+
+    def __eq__(self, other: 'Card'):
+        return self.suit == other.suit and self.value == other.value
