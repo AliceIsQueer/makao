@@ -1,6 +1,7 @@
-from player import Player
 from card_stack import CardStack
 from opponent import Opponent
+from player import Player
+from main_player import MainPlayer
 from deck import Deck
 from typing import List
 import os
@@ -42,14 +43,13 @@ class Game:
             raise InvalidOppNumError()
 
         self._players = []
-        self._players.append(Player(player_name))
+        self._main_player = MainPlayer(player_name)
+        self._players.append(self._main_player)
         for i in range(num_of_opponets):
             self._players.append(Opponent(f'Player{i+1}'))
 
         self._deck = Deck()
         self._stack = CardStack()
-
-        self._previous_turn_message = ''
 
         self._deck.shuffle_deck()
 
@@ -83,15 +83,30 @@ class Game:
     def get_current_player(self) -> 'Player':
         return self.players[self.turn_num % len(self.players)]
 
-    def left_of_player(self, player_index: int) -> 'Player':
+    def get_player_index(self, player: 'Player') -> int:
+        for index, plr in enumerate(self.players):
+            if player == plr:
+                return index
+
+    def left_of_player(self, player: 'Player') -> 'Player':
+        player_index = self.get_player_index(player)
         return self.players[(player_index-1) % len(self.players)]
 
-    def right_of_player(self, player_index: int) -> 'Player':
+    def right_of_player(self, player: 'Player') -> 'Player':
+        player_index = self.get_player_index(player)
         return self.players[(player_index+1) % len(self.players)]
 
     def handle_turn(self) -> None:
         playing = self.get_current_player()
-        if not isinstance(playing, Opponent):
+        if playing.blocked:
+            block_message = (f'{playing.name} was blocked\n'
+                             if isinstance(playing, Opponent)
+                             else 'You have been blocked!\n')
+            self._main_player.add_special_message(block_message)
+            playing.unblock()
+            self.increment_turn()
+            self.handle_turn()
+        elif isinstance(playing, MainPlayer):
             self.handle_player_turn()
         else:
             self.handle_opponent_turn()
@@ -101,13 +116,14 @@ class Game:
             os.system('clear')
             player = self.get_current_player()
 
-            additional_information = self._previous_turn_message
-            if self._previous_turn_message != '':
+            additional_information = self._main_player.special_message
+            if self._main_player.special_message != '':
                 additional_information += '\n'
 
             first_part = str(self.stack) + '\n'
             second_part = self.get_current_player().get_hand_description()
-            third_part = f'{len(player.hand)+1} - Pass your turn and draw a card \n'
+            third_part = (f'{len(player.hand)+1} '
+                          '- Pass your turn and draw a card \n')
             fourth_part = 'Your option is: '
 
             sentence = (additional_information + first_part + second_part +
@@ -120,6 +136,7 @@ class Game:
                 else:
                     if move == len(player.hand):
                         player.add_card(self.deck.draw_card())
+                        player.clear_special_message()
                         self.increment_turn()
                         self.handle_turn()
                         break
@@ -131,28 +148,43 @@ class Game:
 
                     else:
                         self.stack.add_card_on_top(player.remove_card(move))
+                        prev_player = self.left_of_player(player)
+                        next_player = self.right_of_player(player)
+                        self.stack.trigger_top_effect(prev_player, next_player)
+                        player.clear_special_message()
                         self.increment_turn()
                         self.handle_turn()
-
                         break
+
             except InvalidMoveError:
-                self._previous_turn_message = 'This is not a valid option'
+                self._main_player.add_special_message('This is not '
+                                                      'a valid option')
             except InvalidTopCardError:
-                self._previous_turn_message = ('You cannot put this '
-                                               'card on top of the card pile\n')
+                self._main_player.add_special_message('You cannot put this '
+                                                      'card on top of the '
+                                                      'card pile\n')
 
     def handle_opponent_turn(self) -> None:
         opponent = self.get_current_player()
         card_index = opponent.get_optimal_card(self.stack)
-
+        main_player = self._main_player
         if card_index == -1:
             opponent.add_card(self.deck.draw_card())
-            self._previous_turn_message = 'Your opponent passes and draws a card\n'
+            hand_size = len(opponent.hand)
+            main_player.add_special_message(f'{opponent.name} passes '
+                                            'and draws a card '
+                                            f'({hand_size} cards left)\n')
             self.increment_turn()
             self.handle_turn()
         else:
             card = opponent.hand[card_index]
             self.stack.add_card_on_top(opponent.remove_card(card_index))
-            self._previous_turn_message = f'Your opponent played {card}\n'
+            hand_size = len(opponent.hand)
+            prev_player = self.left_of_player(opponent)
+            next_player = self.right_of_player(opponent)
+            self.stack.trigger_top_effect(prev_player, next_player)
+            main_player.add_special_message(f'{opponent.name} '
+                                            f'played {card}'
+                                            f'({hand_size} cards left)\n')
             self.increment_turn()
             self.handle_turn()
