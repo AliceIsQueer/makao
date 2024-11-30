@@ -133,6 +133,7 @@ class Player:
         self._total_blocked_turns = 0
         self._blocked_turns = 0
         self._cards_to_draw = 0
+        self._allowed_cards = []
 
     def transfer_effect(self, other: 'Player'):
         other.set_status_effect(self.status_effect)
