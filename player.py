@@ -37,9 +37,11 @@ class Player:
             self._hand = cards
 
         self._name = name
+        self._won = False
         self._total_blocked_turns = 0
         self._blocked_turns = 0
         self._cards_to_draw = 0
+        self._played_jack = False
         self._status_effect = Status.NOEFFECT
         self._allowed_cards = []
 
@@ -70,6 +72,17 @@ class Player:
     @property
     def cards_to_draw(self):
         return self._cards_to_draw
+
+    @property
+    def won(self):
+        return self._won
+
+    @property
+    def played_jack(self):
+        return self._played_jack
+
+    def set_played_jack(self, val):
+        self._played_jack = val
 
     def add_card(self, card: 'Card') -> None:
         """Adds a card to the player's hand"""
@@ -147,6 +160,9 @@ class Player:
 
     def clear_allowed_cards(self):
         self._allowed_cards.clear()
+
+    def win_game(self):
+        self._won = True
 
     def __str__(self):
         return self.name
