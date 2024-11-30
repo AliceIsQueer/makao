@@ -39,3 +39,10 @@ def test_player_remove_card_wrong_index():
     assert two_of_spades in alice.hand
     with pytest.raises(WrongCardIndexError):
         alice.remove_card(1)
+
+
+def test_player_hand_description():
+    two_of_spades = Card(Suits.SPADES, 2)
+    queen_of_hearts = Card(Suits.HEARTS, 12)
+    alice = Player("Alice", [two_of_spades, queen_of_hearts])
+    assert alice.get_hand_description() == 'Your hand consists of: \n1 - Two of Spades \n2 - Queen of Hearts \n'
