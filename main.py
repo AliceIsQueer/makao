@@ -7,7 +7,7 @@ while True:
         if choice == 1:
             print('aklsjdakljd')
         elif choice == 2:
-            game = Game('Alice', 1)
+            game = Game('Alice', 2)
         else:
             print('This it not a valid option')
     except ValueError:
