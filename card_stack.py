@@ -73,13 +73,16 @@ class CardStack:
                 else:
                     if self.forced_suit is not None:
                         if card.value == self.top_card.value:
-                            return True
+                            continue
                         if card.suit != self.forced_suit:
                             return False
                     else:
                         if (card.value == self.forced_value or
-                           card.value == self.top_card.value):
-                            return True
+                           (card.value == self.top_card.value and card.value == 11)):
+                            continue
+                        else:
+                            return False
+                        
             else:
                 if not card.can_put_card(cards[index-1]):
                     return False
@@ -123,7 +126,8 @@ class CardStack:
             next_player.increase_block()
         elif card.value == 11:
             for player in all_players:
-                player.set_status_effect(Status.FORCESUIT)
+                if not player.won:
+                    player.set_status_effect(Status.FORCESUIT)
             raise JackException
         elif card.value == 13:
             if card.suit == Suits.SPADES:
