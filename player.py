@@ -1,10 +1,19 @@
 from card import Card
 from typing import List, Optional
+from enum import IntEnum
 
 
 class WrongCardIndexError(Exception):
     def __init__(self):
         super().__init__("The given card index is out of range")
+
+
+class Status(IntEnum):
+    NOEFFECT = 1
+    DRAW2OR3 = 2
+    BLOCKED = 3
+    FORCESUIT = 4
+    DRAW5 = 5
 
 
 class Player:
@@ -17,8 +26,8 @@ class Player:
     :param hand: Player's hand of cards
     :type hand: List[Card]
 
-    :param blocked: Whether or not the player will take part in their next turn
-    :type blocked: boolean
+    :param total_blocked_turns: The amount of turns the player will blocked
+    :type total_blocked_turns: int
     """
     def __init__(self, name: str, cards: Optional[List[Card]] = None):
         """Initialises the player class"""
@@ -28,7 +37,10 @@ class Player:
             self._hand = cards
 
         self._name = name
-        self._blocked = False
+        self._total_blocked_turns = 0
+        self._blocked_turns = 0
+        self._status_effect = Status.NOEFFECT
+        self._allowed_card = -1
 
     @property
     def hand(self) -> List[Card]:
@@ -39,31 +51,76 @@ class Player:
         return self._name
 
     @property
-    def blocked(self):
-        return self._blocked
+    def total_blocked_turns(self):
+        return self._total_blocked_turns
 
+    @property
+    def blocked_turns(self):
+        return self._blocked_turns
+
+    @property
+    def status_effect(self):
+        return self._status_effect
+
+    @property
+    def allowed_card(self):
+        return self._allowed_card 
+    
     def add_card(self, card: 'Card') -> None:
         """Adds a card to the player's hand"""
         self._hand.append(card)
 
-    def remove_card(self, card_index: int) -> 'Card':
+    def remove_cards(self, indexes: List[int]) -> 'Card':
         """
-        Removes a card from the player's hand
+        Removes cards from the player's hand
         Throws error if given an invalid index
         """
-        try:
-            return self._hand.pop(card_index)
-        except IndexError:
-            raise WrongCardIndexError()
+        new_hand = []
+        removed_cards = []
 
-    def block_next_turn(self):
-        self._blocked = True
+        for index in indexes:
+            if index > len(self.hand)-1 or index < 0:
+                raise WrongCardIndexError
 
-    def unblock(self):
-        self._blocked = False
+        for index, card in enumerate(self.hand):
+            if index not in indexes:
+                new_hand.append(card)
+            else:
+                removed_cards.append(card)
+
+        self._hand = new_hand
+        return removed_cards
+        # try:
+        #     return self._hand.pop(card_index)
+        # except IndexError:
+        #     raise WrongCardIndexError()
+
+    def increase_block(self):
+        self._total_blocked_turns += 1
+        self._blocked_turns = self._total_blocked_turns
+
+    def decrement_block(self):
+        self._blocked_turns -= 1
+        if self.blocked_turns == 0:
+            self._total_blocked_turns = 0
+            self._status_effect = Status.NOEFFECT
+            self._allowed_card = -1
 
     def get_hand_description(self):
         card_list = ''
         for index, card in enumerate(self.hand):
             card_list += f'{index + 1} - {card} \n'
         return f'Your hand consists of: \n{card_list}'
+
+    def set_status_effect(self, effect: int) -> None:
+        self._status_effect = effect
+
+    def remove_status_effect(self) -> List[int]:
+        self._status_effect = Status.NOEFFECT
+
+    def transfer_effect(self, other: 'Player'):
+        other.set_status_effect(self.status_effect)
+        self.remove_status_effect()
+
+    def set_allowed_card(self, card_value):
+        self._allowed_card = card_value
