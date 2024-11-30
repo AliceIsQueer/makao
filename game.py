@@ -224,22 +224,28 @@ class Game:
         self.increment_turn()
         self.handle_turn()
 
-    def handle_regular_turn(self, player: 'Player', moves):
-        prev_player = self.prev_player(player)
-        next_player = self.next_player(player)
+    def handle_regular_turn(self, player: 'Player', moves, prev_player=None, next_player=None):
+        if prev_player is None:
+            prev_player = self.prev_player(player)
+        if next_player is None:
+            next_player = self.next_player(player)
+
         try:
             cards = [player.hand[move] for move in moves]
             self.stack.add_cards_on_top(player.remove_cards(moves),
                                         prev_player, next_player,
                                         self.players)
             self.add_opponent_status(player, cards)
+
         except KingOfSpadesException:
             self.add_opponent_status(player, cards)
             self.special_king_of_spades_interaction(prev_player)
+
         except AceException:
             self.add_opponent_status(player, cards)
             new_suit = self.get_player_ace_suit(player)
             self.stack.set_forced_suit(new_suit)
+
         except JackException:
             self.add_opponent_status(player, cards)
             new_value = self.get_player_jack_card(player)
@@ -305,23 +311,24 @@ class Game:
                     player.transfer_effect(prev_player)
         else:
             player.transfer_effect(next_player)
-
-        try:
-            cards = [player.hand[move] for move in moves]
-            if isinstance(player, Opponent):
-                self.add_opponent_status(player, cards)
-            self.stack.add_cards_on_top(player.remove_cards(moves),
-                                        prev_player, next_player,
-                                        self.players)
-        except JackException:
-            new_value = self.get_player_jack_card(player)
-            self.stack.set_forced_value(new_value)
-            for play in self.players:
-                play.set_allowed_cards([new_value])
-        except KingOfSpadesException:
-            pass
-        if len(player.hand) == 0:
-            self.get_winner(player)
+        
+        self.handle_regular_turn(player, moves, prev_player, next_player)
+        # try:
+        #     cards = [player.hand[move] for move in moves]
+        #     if isinstance(player, Opponent):
+        #         self.add_opponent_status(player, cards)
+        #     self.stack.add_cards_on_top(player.remove_cards(moves),
+        #                                 prev_player, next_player,
+        #                                 self.players)
+        # except JackException:
+        #     new_value = self.get_player_jack_card(player)
+        #     self.stack.set_forced_value(new_value)
+        #     for play in self.players:
+        #         play.set_allowed_cards([new_value])
+        # except KingOfSpadesException:
+        #     pass
+        # if len(player.hand) == 0:
+        #     self.get_winner(player)
 
     def get_player_input(self, player) -> List[int]:
         if isinstance(player, MainPlayer):
@@ -461,7 +468,7 @@ class Game:
 
     def check_stack_forced_value(self):
         for player in self.players:
-            if player.status_effect == Status.FORCESUIT:
+            if (player.status_effect == Status.FORCESUIT and not player.won):
                 return
         self.stack.reset_forced_value()
 
