@@ -1,6 +1,12 @@
 from card import Card, Suits
+from card_stack import CardStack
 from typing import List
 import random
+
+
+class EmptyDeckError(Exception):
+    def __init__(self):
+        super().__init__("The deck is empty.")
 
 
 class Deck:
@@ -10,9 +16,10 @@ class Deck:
     :param cards: Cards that are currently in the deck. Starts with 52 cards
     :type cards: List[Card]
     """
-    def __init__(self):
+    def __init__(self, card_stack: CardStack):
         """Initialises the Deck Class with 52 cards in it"""
         self._cards = []
+        self._card_stack = card_stack
         for suit in Suits:
             for value in range(1, 14):
                 self._cards.append(Card(suit, value))
@@ -27,7 +34,13 @@ class Deck:
 
     def draw_card(self) -> 'Card':
         """Removes the card from top of the deck and returns it"""
-        return self._cards.pop()
+        if len(self._cards) == 0:
+            self._cards = self._card_stack.remove_bottom_cards()
+            self.shuffle_deck()
+        if len(self._cards) == 0:
+            raise EmptyDeckError
+        else:
+            return self._cards.pop()
 
     def refresh_deck(self) -> None:
         """Resets the deck's cards to their base state"""
