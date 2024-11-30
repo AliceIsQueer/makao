@@ -19,7 +19,19 @@ class Suits(IntEnum):
 
 
 class Card:
+    """
+    Class Card. Contains attributes:
+
+    :param suit: The card's suit
+    :type suit: int
+
+    :param value: Card's value from Two to Ace
+    :type value: int
+    """
     def __init__(self, suit: int, value: int):
+        """
+        Initialises the card class. Throws error if not a real card
+        """
         values = [value for value in Suits]
         if suit not in values:
             raise InvalidSuitError()
@@ -30,20 +42,27 @@ class Card:
         self._value = value
 
     @property
-    def suit(self):
+    def suit(self) -> int:
         return self._suit
 
     @property
-    def value(self):
+    def value(self) -> int:
         return self._value
 
-    def can_put_card(self, other: 'Card'):
+    def can_put_card(self, other: 'Card') -> bool:
+        """
+        Returns True if this card can be put on the card given.
+        Returns False otherwise.
+        """
         if (other.value == self.value or other.suit == self.suit
            or self.value == 12):
             return True
         return False
 
-    def __str__(self):
+    def __str__(self) -> str:
+        """
+        Returns the name of the card
+        """
         names = ['Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight',
                  'Nine', 'Ten', 'Jack', 'Queen', 'King', 'Ace']
         suits = ['Spades', 'Diamonds', 'Clubs', 'Hearts']
