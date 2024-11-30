@@ -1,4 +1,5 @@
 from enum import IntEnum
+# from player import Player
 
 
 class InvalidSuitError(Exception):
@@ -30,7 +31,7 @@ class Card:
     """
     def __init__(self, suit: int, value: int):
         """
-        Initialises the card class. Throws error if not a real card
+        Initialises the card class. Throws error if the card given is invalid
         """
         values = [value for value in Suits]
         if suit not in values:
@@ -52,7 +53,8 @@ class Card:
     def can_put_card(self, other: 'Card') -> bool:
         """
         Returns True if this card can be put on the card given.
-        Returns False otherwise.
+        Returns False otherwise
+        Follows the rules of the game
         """
         if (other.value == self.value or other.suit == self.suit
            or self.value == 12 or other.value == 12):
@@ -63,11 +65,14 @@ class Card:
         """
         Returns the name of the card
         """
-        names = ['Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight',
-                 'Nine', 'Ten', 'Jack', 'Queen', 'King', 'Ace']
-        suits = ['Spades', 'Diamonds', 'Clubs', 'Hearts']
+        names = ['2', '3', '4', '5', '6', '7', '8',
+                 '9', '10', 'J', 'Q', 'K', 'A']
+        suits = ['\u2660', '\u2665', '\u2666', '\u2663']
 
-        return f'{names[self.value - 2]} of {suits[self.suit - 1]}'
+        return f'{names[self.value - 2]}{suits[self.suit - 1]}'
 
     def __eq__(self, other: 'Card'):
         return self.suit == other.suit and self.value == other.value
+
+    # def trigger_card_effect(self, next_player: 'Player'):
+    #     pass
