@@ -61,3 +61,9 @@ class Player:
 
     def unblock(self):
         self._blocked = False
+
+    def get_hand_description(self):
+        card_list = ''
+        for index, card in enumerate(self.hand):
+            card_list += f'{index + 1} - {card} \n'
+        return f'Your hand consists of: \n{card_list}'
