@@ -157,17 +157,14 @@ class Game:
             player.decrement_block()
 
         if player.cards_to_draw > 0:
-            self.main_player.add_special_message(f'{player} drew {player.cards_to_draw} cards') # NOQA
-            for _ in range(player.cards_to_draw):
-                player.add_card(self.deck.draw_card())
-            self.main_player.add_special_message(f' (at {len(player.hand)} cards) \n') # NOQA
-            player.remove_status_effect()
+            self.player_draw_cards(player)
 
         if player.status_effect == Status.FORCESUIT and not player.played_jack:
             player.remove_status_effect()
             self.check_stack_forced_value()
 
         player.set_played_jack(False)
+        player.reset_said_makao()
 
         self.progress_turn(clear_messages)
 
@@ -236,6 +233,8 @@ class Game:
             self.stack.add_cards_on_top(player.remove_cards(moves),
                                         prev_player, next_player,
                                         self.players)
+            
+
             self.add_opponent_status(player, cards)
 
         except KingOfSpadesException:
@@ -254,8 +253,12 @@ class Game:
             self.stack.set_forced_value(new_value)
             for play in self.players:
                 play.set_allowed_cards([new_value])
+
         if len(player.hand) == 0:
             self.get_winner(player)
+        if len(player.hand) == 1 and not player.said_makao:
+            player.increase_cards_to_draw(5)
+            self.player_draw_cards(player) 
 
     def handle_pass(self, player: 'Player'):
         card = self.deck.draw_card()
@@ -313,7 +316,11 @@ class Game:
     def get_player_input(self, player) -> List[int]:
         if isinstance(player, MainPlayer):
             sentence = self.ask_player_input(player)
-            moves = [int(card) - 1 for card in input(sentence).split(' ')]
+            sequence = input(sentence).split(' ')
+            if sequence[-1] == 'MAKAO':
+                player.set_said_makao()
+                sequence.pop()
+            moves = [int(card) - 1 for card in sequence]
         else:
             moves = [player.get_optimal_card(self.stack)]
         return moves
@@ -412,11 +419,7 @@ class Game:
         moves = self.get_player_input(player)
         self.handle_effect_turn(player, moves)
         if player.cards_to_draw > 0:
-            self.main_player.add_special_message(f'{player} drew {player.cards_to_draw} cards') # NOQA
-            for _ in range(player.cards_to_draw):
-                player.add_card(self.deck.draw_card())
-            self.main_player.add_special_message(f' (at {len(player.hand)} cards) \n') # NOQA
-            player.remove_status_effect()
+            self.player_draw_cards(player)
             print(self.ask_player_input(self.main_player))
 
     def get_player_ace_suit(self, player):
@@ -451,6 +454,13 @@ class Game:
             if (player.status_effect == Status.FORCESUIT and not player.won):
                 return
         self.stack.reset_forced_value()
+    
+    def player_draw_cards(self, player: 'Player'):
+        self.main_player.add_special_message(f'{player} drew {player.cards_to_draw} cards') # NOQA
+        for _ in range(player.cards_to_draw):
+            player.add_card(self.deck.draw_card())
+        self.main_player.add_special_message(f' (at {len(player.hand)} cards) \n') # NOQA
+        player.remove_status_effect()
 
     def get_winner(self, player: 'Player'):
         player.win_game()
