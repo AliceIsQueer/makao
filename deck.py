@@ -15,8 +15,11 @@ class Deck:
 
     :param cards: Cards that are currently in the deck. Starts with 52 cards
     :type cards: List[Card]
+
+    :param card_stack: The stack that is bound to this deck
+    :type card_stack: 'CardStack'
     """
-    def __init__(self, card_stack: CardStack):
+    def __init__(self, card_stack: CardStack) -> None:
         """Initialises the Deck Class with 52 cards in it"""
         self._cards = []
         self._card_stack = card_stack
