@@ -1,5 +1,5 @@
 from player import Player
-from card import Card, Suits
+from card import Card
 from typing import List, Optional
 from card_stack import CardStack
 
@@ -23,13 +23,17 @@ class Opponent(Player):
         return len(self.hand)
 
     def get_optimal_suit(self):
-        suits_in_hand = {}
-        for suit in Suits:
-            suits_in_hand[suit] = 0
-
+        suits_in_hand = [0]*4
         for card in self.hand:
             suit = card.suit
-            suits_in_hand[suit] += 1
+            suits_in_hand[suit - 1] += 1
 
-        suits_to_list = [suits_in_hand[key] for key in suits_in_hand] 
-        return suits_to_list[suits_to_list.index(max(suits_to_list))] + 1
+        return suits_in_hand.index(max(suits_in_hand)) + 1
+
+    def get_optimal_value(self):
+        cards_in_hand = [0]*13
+        for card in self.hand:
+            value = card.value
+            cards_in_hand[value-1] += 1
+
+        return cards_in_hand[4:10].index(max(cards_in_hand[4:10])) + 5

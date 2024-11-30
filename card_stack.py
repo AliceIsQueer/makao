@@ -13,6 +13,11 @@ class AceException(Exception):
         super().__init__('Someone has played an ace')
 
 
+class JackException(Exception):
+    def __init__(self):
+        super().__init__('Someone has played a jack')
+
+
 class CardStack:
     """
     Class CardStack. Contains attributes:
@@ -26,8 +31,9 @@ class CardStack:
             self._cards = []
         else:
             self._cards = cards
-        
+
         self._forced_suit = None
+        self._forced_value = None
 
     @property
     def cards(self) -> List['Card']:
@@ -36,6 +42,10 @@ class CardStack:
     @property
     def forced_suit(self):
         return self._forced_suit
+
+    @property
+    def forced_value(self):
+        return self._forced_value
 
     @property
     def top_card(self) -> 'Card':
@@ -48,17 +58,28 @@ class CardStack:
     def reset_forced_suit(self):
         self._forced_suit = None
 
+    def set_forced_value(self, value):
+        self._forced_value = value
+
+    def reset_forced_value(self):
+        self._forced_value = None
+
     def is_valid_combo(self, cards: List['Card']) -> bool:
         for index, card in enumerate(cards):
             if index == 0:
-                if self.forced_suit is None:
+                if self.forced_suit is None and self.forced_value is None:
                     if not card.can_put_card(self.top_card):
                         return False
                 else:
-                    if card.value == self.top_card.value:
-                        return True
-                    if card.suit != self.forced_suit:
-                        return False
+                    if self.forced_suit is not None:
+                        if card.value == self.top_card.value:
+                            return True
+                        if card.suit != self.forced_suit:
+                            return False
+                    else:
+                        if (card.value == self.forced_value or
+                           card.value == self.top_card.value):
+                            return True
             else:
                 if not card.can_put_card(cards[index-1]):
                     return False
@@ -103,6 +124,7 @@ class CardStack:
         elif card.value == 11:
             for player in all_players:
                 player.set_status_effect(Status.FORCESUIT)
+            raise JackException
         elif card.value == 13:
             if card.suit == Suits.SPADES:
                 prev_player.set_status_effect(Status.DRAW5)
