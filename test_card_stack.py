@@ -1,6 +1,7 @@
-from card_stack import CardStack
+from card_stack import CardStack, KingOfSpadesException
 from card import Card, Suits
 from player import Player, Status
+import pytest
 
 
 def test_card_stack_init():
@@ -63,9 +64,10 @@ def test_card_stack_add5_prev():
     next_player = Player([])
     prev_player = Player([])
     all_players = [next_player, prev_player]
-    stack.add_cards_on_top([king_of_spades], prev_player,
-                           next_player, all_players)
-    assert prev_player.status_effect == Status.DRAW5
+    with pytest.raises(KingOfSpadesException):
+        stack.add_cards_on_top([king_of_spades], prev_player,
+                               next_player, all_players)
+        assert prev_player.status_effect == Status.DRAW5
 
 
 def test_card_stack_add5_next():

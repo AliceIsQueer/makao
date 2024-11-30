@@ -1,10 +1,12 @@
-from card_stack import CardStack, KingOfSpadesException, AceException
+from card_stack import CardStack
+from card_stack import KingOfSpadesException, AceException, JackException
 from opponent import Opponent
 from player import Player, Status, WrongCardIndexError
 from main_player import MainPlayer
 from deck import Deck, EmptyDeckError
 from typing import List
 from card import Suits
+from colorama import Fore, Style
 import os
 
 
@@ -64,11 +66,13 @@ class Game:
             for player in self._players:
                 player.add_card(self._deck.draw_card())
 
+        self._winners = []
+
         self._turn_num = 0
         self.handle_turn()
 
     @property
-    def players(self) -> List['Deck']:
+    def players(self) -> List['Player']:
         return self._players
 
     @property
@@ -87,6 +91,10 @@ class Game:
     def main_player(self):
         return self._main_player
 
+    @property
+    def winners(self):
+        return self._winners
+
     def increment_turn(self) -> None:
         self._turn_num += 1
 
@@ -104,7 +112,7 @@ class Game:
 
     def prev_player(self, player: 'Player') -> 'Player':
         prev = self.left_of_player(player)
-        while prev.status_effect == Status.BLOCKED:
+        while prev.status_effect == Status.BLOCKED or prev.won:
             index = self.players.index(prev)
             prev = self.players[(index - 1) % len(self.players)]
         return prev
@@ -115,13 +123,21 @@ class Game:
 
     def next_player(self, player: 'Player'):
         next = self.right_of_player(player)
-        while next.status_effect == Status.BLOCKED:
+        while next.status_effect == Status.BLOCKED or next.won:
             index = self.players.index(next)
             next = self.players[(index + 1) % len(self.players)]
         return next
 
     def handle_turn(self) -> None:
+        if len(self.winners) == len(self.players) - 1:
+            self.finish_game()
+            return
+
         player = self.get_current_player()
+
+        if player.won:
+            self.progress_turn()
+            return
 
         clear_messages = False
         if player.status_effect != Status.NOEFFECT:
@@ -146,6 +162,12 @@ class Game:
             self.main_player.add_special_message(f' (at {len(player.hand)} cards) \n') # NOQA
             player.remove_status_effect()
 
+        if player.status_effect == Status.FORCESUIT and not player.played_jack:
+            player.remove_status_effect()
+            self.check_stack_forced_value()
+
+        player.set_played_jack(False)
+
         self.progress_turn(clear_messages)
 
     def handle_player_turn(self, player) -> None:
@@ -169,9 +191,6 @@ class Game:
                 if len(moves) > 1 and len(player.hand) in moves:
                     raise ValueError
 
-                cards_to_put = [player.hand[move] for move in moves]
-
-                if not self.stack.is_valid_combo(cards_to_put):
                     raise InvalidTopCardError
 
                 self.handle_regular_turn(player, moves)
@@ -203,18 +222,27 @@ class Game:
         self.increment_turn()
         self.handle_turn()
 
-    def handle_regular_turn(self, player, moves):
+    def handle_regular_turn(self, player: 'Player', moves):
         prev_player = self.prev_player(player)
         next_player = self.next_player(player)
         try:
             self.stack.add_cards_on_top(player.remove_cards(moves),
                                         prev_player, next_player,
                                         self.players)
+
+            if len(player.hand) == 0:
+                self.get_winner(player)
         except KingOfSpadesException:
             self.special_king_of_spades_interaction(prev_player)
         except AceException:
             new_suit = self.get_player_ace_suit(player)
             self.stack.set_forced_suit(new_suit)
+        except JackException:
+            new_value = self.get_player_jack_card(player)
+            player.set_played_jack(True)
+            self.stack.set_forced_value(new_value)
+            for player in self.players:
+                player.set_allowed_cards([new_value])
 
     def handle_pass(self, player: 'Player'):
         card = self.deck.draw_card()
@@ -226,11 +254,14 @@ class Game:
             raise InvalidStatusTransferError
 
         if len(moves) == 1 and moves[0] == len(player.hand):
+            if player.status_effect == Status.FORCESUIT:
+                self.handle_pass(player)
             return
 
         card = player.hand[moves[0]]
         if card.value not in player.allowed_cards:
-            raise InvalidStatusTransferError
+            if card.value != 11 or player.status_effect != Status.FORCESUIT:
+                raise InvalidStatusTransferError
 
         prev_player = self.prev_player(player)
         next_player = self.next_player(player)
@@ -245,9 +276,21 @@ class Game:
                     player.transfer_effect(prev_player)
         else:
             player.transfer_effect(next_player)
-        self.stack.add_cards_on_top(player.remove_cards(moves),
-                                    prev_player, next_player,
-                                    self.players)
+
+        try:
+            self.stack.add_cards_on_top(player.remove_cards(moves),
+                                        prev_player, next_player,
+                                        self.players)
+        except JackException:
+            new_value = self.get_player_jack_card(player)
+            self.stack.set_forced_value(new_value)
+            for player in self.players:
+                player.set_allowed_cards([new_value])
+            if len(player.hand) == 0:
+                self.get_winner(player)
+
+        if len(player.hand) == 0:
+            self.get_winner(player)
 
     def get_player_input(self, player) -> List[int]:
         if isinstance(player, MainPlayer):
@@ -265,8 +308,9 @@ class Game:
         if self._main_player.special_message != '':
             additional_information += '\n'
 
-        special_message = (' and draw a card' if
-                           player.status_effect == Status.NOEFFECT else '')
+        special_message = ''
+        if player.status_effect in [Status.NOEFFECT, Status.FORCESUIT]:
+            special_message = ' and draw a card'
 
         first_part = str(self.stack) + '\n'
         second_part = player.get_hand_description()
@@ -317,8 +361,8 @@ class Game:
 
             block_message = (f'{playing.name} was blocked{message}\n'
                              if isinstance(playing, Opponent)
-                             else (f'You have been blocked{message}!\n'
-                                   f'{extra_message}'))
+                             else (f'{Fore.RED}You have been blocked{message}!\n' # NOQA
+                                   f'{extra_message}{Style.RESET_ALL}'))
 
             self.main_player.add_special_message(block_message)
             playing.set_allowed_cards([4])
@@ -328,9 +372,9 @@ class Game:
             block_message = (f'{playing.name} is about to draw '
                              f'{playing.cards_to_draw} cards\n'
                              if isinstance(playing, Opponent)
-                             else (f'You are about to draw '
+                             else (f'{Fore.RED}You are about to draw '
                                    f'{playing.cards_to_draw} cards!\n'
-                                   f'{extra_message}'))
+                                   f'{extra_message}{Style.RESET_ALL}'))
 
             self.main_player.add_special_message(block_message)
             playing.set_allowed_cards([2, 3])
@@ -340,9 +384,9 @@ class Game:
             block_message = (f'{playing.name} is about to draw '
                              f'{playing.cards_to_draw} cards\n'
                              if isinstance(playing, Opponent)
-                             else (f'You are about to draw '
+                             else (f'{Fore.RED}You are about to draw '
                                    f'{playing.cards_to_draw} cards!\n'
-                                   f'{extra_message}'))
+                                   f'{extra_message}{Style.RESET_ALL}'))
 
             self.main_player.add_special_message(block_message)
             playing.set_allowed_cards([13])
@@ -364,10 +408,45 @@ class Game:
         if isinstance(player, MainPlayer):
             suits_string = ''
             for index, suit in enumerate(suits):
-                suits_string += f'{index+1} - {suit}\n'
-            suit = int(input((f'Pick a suit:\n{suits_string}')))
+                color = Fore.BLACK if index % 2 == 0 else Fore.RED
+                suits_string += (f'{index+1} - '
+                                 f'{color + suit + Style.RESET_ALL}\n')
+            suit = int(input((f'Pick a suit: \n{suits_string}')))
             return suit
         elif isinstance(player, Opponent):
             suit = player.get_optimal_suit()
-            self.main_player.add_special_message(f'{player} has picked {suits[suit-1]} as the new suit\n') # NOQA
+            self.main_player.add_special_message(f'{Fore.RED}{player} has '
+                                                 f'picked {suits[suit-1]} '
+                                                 f'as the new suit{Style.RESET_ALL}\n') # NOQA
             return suit
+
+    def get_player_jack_card(self, player):
+        if isinstance(player, MainPlayer):
+            value = int(input('Pick a value to force (from 5 to 10): '))
+            return value
+        elif isinstance(player, Opponent):
+            value = player.get_optimal_value()
+            self.main_player.add_special_message(f'{Fore.RED}{player} has picked {value} ' # NOQA
+                                                 f'as the forced card{Style.RESET_ALL}\n') # NOQA
+            return value
+
+    def check_stack_forced_value(self):
+        for player in self.players:
+            if player.status_effect == Status.FORCESUIT:
+                return
+        self.stack.reset_forced_value()
+
+    def get_winner(self, player: 'Player'):
+        player.win_game()
+        self._winners.append(player)
+
+    def finish_game(self):
+        os.system('clear')
+        self.main_player.clear_error_message()
+        self.main_player.clear_special_message()
+        ends = ['st', 'nd', 'rd', 'th']
+        print('The game is finished!\n')
+        for place, player in enumerate(self.players):
+            print(f'{place+1}{ends[place]} place - {player}')
+
+        return
