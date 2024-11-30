@@ -1,5 +1,5 @@
 from enum import IntEnum
-# from player import Player
+from colorama import Fore, Style
 
 
 class InvalidSuitError(Exception):
@@ -67,9 +67,12 @@ class Card:
         """
         names = ['2', '3', '4', '5', '6', '7', '8',
                  '9', '10', 'J', 'Q', 'K', 'A']
-        suits = ['\u2660', '\u2665', '\u2666', '\u2663']
+        suits = ['\u2660', '\u2666', '\u2663', '\u2665']
 
-        return f'{names[self.value - 2]}{suits[self.suit - 1]}'
+        color = (Fore.RED if (self.suit) in (Suits.DIAMONDS, Suits.HEARTS)
+                 else Fore.BLACK)
+        return (f'{names[self.value - 2]}{color + suits[self.suit - 1]}'
+                + Style.RESET_ALL)
 
     def __eq__(self, other: 'Card'):
         return self.suit == other.suit and self.value == other.value
