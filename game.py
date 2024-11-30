@@ -4,6 +4,7 @@ from player import Player, Status, WrongCardIndexError
 from main_player import MainPlayer
 from deck import Deck, EmptyDeckError
 from typing import List
+from card import Suits
 import os
 
 
@@ -121,30 +122,40 @@ class Game:
 
     def handle_turn(self) -> None:
         playing = self.get_current_player()
+
         clear_messages = False
         if playing.status_effect != Status.NOEFFECT:
-            self.handle_special_turn()
+            self.prepare_special_turn()
 
         if isinstance(playing, MainPlayer):
             clear_messages = True
-            self.handle_player_turn()
-        else:
-            self.handle_opponent_turn()
-        
+
+        self.handle_player_turn()
+
         if playing.blocked_turns > 0:
             playing.decrement_block()
 
+        if playing.cards_to_draw > 0:
+            self.main_player.add_special_message(f'{playing} drew {playing.cards_to_draw} cards') # NOQA
+            for _ in range(playing.cards_to_draw):
+                playing.add_card(self.deck.draw_card())
+            self.main_player.add_special_message(f' (at {len(playing.hand)} cards) \n') # NOQA
+            playing.reset_cards_to_draw()
+
         self.progress_turn(clear_messages)
-        
+
     def handle_player_turn(self) -> None:
         while True:
             try:
                 moves = self.get_player_input()
                 player = self.get_current_player()
+                if isinstance(player, Opponent):
+                    self.add_opponent_status(moves)
+
                 if max(moves) > len(player.hand) or min(moves) < 0:
                     raise ValueError
 
-                if player.allowed_card != -1:
+                if player.allowed_cards != []:
                     self.handle_effect_turn(player, moves)
                     break
 
@@ -172,11 +183,14 @@ class Game:
                                                    'card pile\n')
             except EmptyDeckError:
                 self.main_player.set_error_message('The deck is empty\n')
-                return 
+                break
+
             except WrongCardIndexError:
-                self.main_player.set_error_message('Something went wrong.')
+                pass
 
             except InvalidStatusTransferError:
+                self.main_player.set_error_message("You cannot play this "
+                                                   "card this turn\n")
                 pass
 
     def progress_turn(self, clear: bool = True):
@@ -192,13 +206,11 @@ class Game:
         self.stack.add_cards_on_top(player.remove_cards(moves),
                                     prev_player, next_player,
                                     self.players)
-        # self.progress_turn()
 
     def handle_pass(self, player: 'Player'):
         card = self.deck.draw_card()
 
         player.add_card(card)
-        # self.progress_turn()
 
     def handle_effect_turn(self, player: 'Player', moves):
         if len(moves) > 1 or moves[0] > len(player.hand):
@@ -207,12 +219,23 @@ class Game:
         if len(moves) == 1 and moves[0] == len(player.hand):
             return
 
-        elif player.hand[moves[0]].value != player.allowed_card:
+        card = player.hand[moves[0]].value
+        if card not in player.allowed_cards:
             raise InvalidStatusTransferError
 
         prev_player = self.prev_player(player)
         next_player = self.next_player(player)
-        player.transfer_effect(next_player)
+
+        if player.status_effect == Status.DRAW5:
+            if card.suit in [Suits.CLUBS, Suits.Diamonds]:
+                player.remove_status_effect()
+            else:
+                if self.stack.top_card.suit == Suits.SPADES:
+                    player.transfer_effect(next_player)
+                else:
+                    player.transfer_effect(prev_player)
+        else:
+            player.transfer_effect(next_player)
         self.stack.add_cards_on_top(player.remove_cards(moves),
                                     prev_player, next_player,
                                     self.players)
@@ -248,38 +271,35 @@ class Game:
 
         return sentence
 
-    def handle_opponent_turn(self) -> None:
+    def add_opponent_status(self, card_indexes) -> None:
         opponent = self.get_current_player()
-        card_index = opponent.get_optimal_card(self.stack)
         main_player = self._main_player
-        try:
-            if card_index == -1:
-                message = ''
-                if opponent.allowed_card == -1:
-                    card = self.deck.draw_card()
-                    message = 'and draws a card '
+        if card_indexes[0] == len(opponent.hand):
+            message = ''
+            if opponent.allowed_cards == []:
+                message = 'and draws a card '
 
-                    opponent.add_card(card)
-                hand_size = len(opponent.hand)
-                main_player.add_special_message(f'{opponent.name} passes '
-                                                f'{message}'
-                                                f'({hand_size} cards left)\n')
-            else:
-                card = opponent.hand[card_index]
-                prev_player = self.prev_player(opponent)
-                next_player = self.next_player(opponent)
-                self.stack.add_cards_on_top(opponent.remove_cards([card_index]), # NOQA
-                                            prev_player, next_player,
-                                            self.players)
-                hand_size = len(opponent.hand)
-                main_player.add_special_message(f'{opponent.name} '
-                                                f'played {card}'
-                                                f'({hand_size} cards left)\n')
-        except EmptyDeckError:
-            main_player.set_error_message('The deck is empty\n')
-            return
+            hand_size = len(opponent.hand)
+            main_player.add_special_message(f'{opponent.name} passes '
+                                            f'{message}'
+                                            f'({hand_size} cards left)\n')
+        else:
+            cards = [opponent.hand[index] for index in card_indexes]
 
-    def handle_special_turn(self):
+            cards_played = [str(card) for card in cards]
+
+            cards_string = ''
+            for index, card in enumerate(cards_played):
+                cards_string += card
+                if index < len(cards_played) - 1:
+                    cards_string += ' and '
+
+            hand_size = len(opponent.hand)
+            main_player.add_special_message(f'{opponent.name} '
+                                            f'played {cards_string}'
+                                            f'({hand_size} cards left)\n')
+
+    def prepare_special_turn(self):
         playing = self.get_current_player()
         if playing.status_effect == Status.BLOCKED:
             message = ('' if playing.blocked_turns == 1
@@ -295,16 +315,28 @@ class Game:
                                    f'{extra_message}'))
 
             self.main_player.add_special_message(block_message)
-            playing.set_allowed_card(4)
-            # playing.remove_status_effect(Status.BLOCKED)
-            # self.increment_turn()
-            # self.handle_turn()
-        else:
-            pass
-            # self.main_player.add_special_message("Something weird happened")
-            # playing.remove_status_effect()
+            playing.set_allowed_cards([4])
+        elif playing.status_effect == Status.DRAW2OR3:
+            extra_message = 'You can play a 2 or a 3 to transfer it to the next player\n' # NOQA
 
-        # if playing.isinstance(MainPlayer):
-        #     self.handle_player_turn()
-        # else:
-        #     self.handle_opponent_turn()
+            block_message = (f'{playing.name} is about to draw '
+                             f'{playing.cards_to_draw} cards\n'
+                             if isinstance(playing, Opponent)
+                             else (f'You are about to draw '
+                                   f'{playing.cards_to_draw} cards!\n'
+                                   f'{extra_message}'))
+
+            self.main_player.add_special_message(block_message)
+            playing.set_allowed_cards([2, 3])
+        elif playing.status_effect == Status.DRAW5:
+            extra_message = 'You can play a King to either negate the effect or return it to sender\n' # NOQA
+
+            block_message = (f'{playing.name} is about to draw '
+                             f'{playing.cards_to_draw} cards\n'
+                             if isinstance(playing, Opponent)
+                             else (f'You are about to draw '
+                                   f'{playing.cards_to_draw} cards!\n'
+                                   f'{extra_message}'))
+
+            self.main_player.add_special_message(block_message)
+            playing.set_allowed_cards([13])

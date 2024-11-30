@@ -14,10 +14,10 @@ class Opponent(Player):
         Returns -1 if the opponent should skip their turn
         """
         for index, card in enumerate(self.hand):
-            if self.allowed_card != - 1:
-                if self.allowed_card == card.value:
+            if self.allowed_cards != []:
+                if self.allowed_cards == card.value:
                     return index
             else:
                 if (card.can_put_card(card_stack.top_card)):
                     return index
-        return -1
+        return len(self.hand)

@@ -66,6 +66,7 @@ class CardStack:
 
         if card.value == 2 or card.value == 3:
             next_player.set_status_effect(Status.DRAW2OR3)
+            next_player.increase_cards_to_draw(card.value)
         elif card.value == 4:
             next_player.set_status_effect(Status.BLOCKED)
             next_player.increase_block()
@@ -75,5 +76,7 @@ class CardStack:
         elif card.value == 13:
             if card.suit == Suits.SPADES:
                 prev_player.set_status_effect(Status.DRAW5)
+                prev_player.increase_cards_to_draw(5)
             elif card.suit == Suits.HEARTS:
                 next_player.set_status_effect(Status.DRAW5)
+                next_player.increase_cards_to_draw(5)
