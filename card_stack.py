@@ -14,8 +14,12 @@ class CardStack:
     def cards(self) -> List['Card']:
         return self._cards
 
+    @property
     def top_card(self) -> 'Card':
         return self.cards[-1]
+
+    def __str__(self):
+        return f'The card at the top is {self.top_card}'
 
     def add_card_on_top(self, card: 'Card'):
         self._cards.append(card)
