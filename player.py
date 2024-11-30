@@ -117,7 +117,7 @@ class Player:
     def reset_cards_to_draw(self):
         self._cards_to_draw = 0
         self._status_effect = Status.NOEFFECT
-        self._allowed_cards = []
+        self.clear_allowed_cards()
 
     def get_hand_description(self):
         card_list = ''
@@ -133,7 +133,7 @@ class Player:
         self._total_blocked_turns = 0
         self._blocked_turns = 0
         self._cards_to_draw = 0
-        self._allowed_cards = []
+        self.clear_allowed_cards()
 
     def transfer_effect(self, other: 'Player'):
         other.set_status_effect(self.status_effect)
@@ -145,7 +145,7 @@ class Player:
     def set_allowed_cards(self, card_values):
         self._allowed_cards = card_values
 
-    def clear_allowed_card(self):
+    def clear_allowed_cards(self):
         self._allowed_cards.clear()
 
     def __str__(self):
