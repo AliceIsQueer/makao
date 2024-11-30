@@ -44,6 +44,7 @@ class Player:
         self._played_jack = False
         self._status_effect = Status.NOEFFECT
         self._allowed_cards = []
+        self._said_makao = False
 
     @property
     def hand(self) -> List[Card]:
@@ -80,6 +81,10 @@ class Player:
     @property
     def played_jack(self):
         return self._played_jack
+
+    @property
+    def said_makao(self):
+        return self._said_makao
 
     def set_played_jack(self, val):
         self._played_jack = val
@@ -163,6 +168,12 @@ class Player:
 
     def win_game(self):
         self._won = True
+
+    def set_said_makao(self):
+        self._said_makao = True
+
+    def reset_said_makao(self):
+        self._said_makao = False
 
     def __str__(self):
         return self.name
