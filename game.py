@@ -1,8 +1,8 @@
 from card_stack import CardStack
 from opponent import Opponent
-from player import Player
+from player import Player, Status, WrongCardIndexError
 from main_player import MainPlayer
-from deck import Deck
+from deck import Deck, EmptyDeckError
 from typing import List
 import os
 
@@ -20,6 +20,11 @@ class InvalidMoveError(Exception):
 class InvalidTopCardError(Exception):
     def __init__(self):
         super().__init__("You cannot put this card on top of the card stack.")
+
+
+class InvalidStatusTransferError(Exception):
+    def __init__(self):
+        super().__init__("You cannot play this card.")
 
 
 class Game:
@@ -48,12 +53,12 @@ class Game:
         for i in range(num_of_opponets):
             self._players.append(Opponent(f'Player{i+1}'))
 
-        self._deck = Deck()
         self._stack = CardStack()
+        self._deck = Deck(self._stack)
 
         self._deck.shuffle_deck()
 
-        self._stack.add_card_on_top(self._deck.draw_card())
+        self._stack.add_cards_on_top([self._deck.draw_card()])
         for i in range(5):
             for player in self._players:
                 player.add_card(self._deck.draw_card())
@@ -77,6 +82,10 @@ class Game:
     def turn_num(self) -> int:
         return self._turn_num
 
+    @property
+    def main_player(self):
+        return self._main_player
+
     def increment_turn(self) -> None:
         self._turn_num += 1
 
@@ -92,99 +101,210 @@ class Game:
         player_index = self.get_player_index(player)
         return self.players[(player_index-1) % len(self.players)]
 
+    def prev_player(self, player: 'Player') -> 'Player':
+        prev = self.left_of_player(player)
+        while prev.status_effect == Status.BLOCKED:
+            index = self.players.index(prev)
+            prev = self.players[(index - 1) % len(self.players)]
+        return prev
+
     def right_of_player(self, player: 'Player') -> 'Player':
         player_index = self.get_player_index(player)
         return self.players[(player_index+1) % len(self.players)]
 
+    def next_player(self, player: 'Player'):
+        next = self.right_of_player(player)
+        while next.status_effect == Status.BLOCKED:
+            index = self.players.index(next)
+            next = self.players[(index + 1) % len(self.players)]
+        return next
+
     def handle_turn(self) -> None:
         playing = self.get_current_player()
-        if playing.blocked:
-            block_message = (f'{playing.name} was blocked\n'
-                             if isinstance(playing, Opponent)
-                             else 'You have been blocked!\n')
-            self._main_player.add_special_message(block_message)
-            playing.unblock()
-            self.increment_turn()
-            self.handle_turn()
-        elif isinstance(playing, MainPlayer):
+        clear_messages = False
+        if playing.status_effect != Status.NOEFFECT:
+            self.handle_special_turn()
+
+        if isinstance(playing, MainPlayer):
+            clear_messages = True
             self.handle_player_turn()
         else:
             self.handle_opponent_turn()
+        
+        if playing.blocked_turns > 0:
+            playing.decrement_block()
 
+        self.progress_turn(clear_messages)
+        
     def handle_player_turn(self) -> None:
         while True:
-            os.system('clear')
-            player = self.get_current_player()
-
-            additional_information = self._main_player.special_message
-            if self._main_player.special_message != '':
-                additional_information += '\n'
-
-            first_part = str(self.stack) + '\n'
-            second_part = self.get_current_player().get_hand_description()
-            third_part = (f'{len(player.hand)+1} '
-                          '- Pass your turn and draw a card \n')
-            fourth_part = 'Your option is: '
-
-            sentence = (additional_information + first_part + second_part +
-                        third_part + fourth_part)
             try:
-                move = int(input(sentence)) - 1
-                if move > len(player.hand) or move < 0:
-                    raise InvalidMoveError
+                moves = self.get_player_input()
+                player = self.get_current_player()
+                if max(moves) > len(player.hand) or min(moves) < 0:
+                    raise ValueError
 
-                else:
-                    if move == len(player.hand):
-                        player.add_card(self.deck.draw_card())
-                        player.clear_special_message()
-                        self.increment_turn()
-                        self.handle_turn()
-                        break
+                if player.allowed_card != -1:
+                    self.handle_effect_turn(player, moves)
+                    break
 
-                    card_to_put = player.hand[move]
+                if len(moves) == 1 and moves[0] == len(player.hand):
+                    self.handle_pass(player)
+                    break
 
-                    if not card_to_put.can_put_card(self.stack.top_card):
-                        raise InvalidTopCardError
+                if len(moves) > 1 and len(player.hand) in moves:
+                    raise ValueError
 
-                    else:
-                        self.stack.add_card_on_top(player.remove_card(move))
-                        prev_player = self.left_of_player(player)
-                        next_player = self.right_of_player(player)
-                        self.stack.trigger_top_effect(prev_player, next_player)
-                        player.clear_special_message()
-                        self.increment_turn()
-                        self.handle_turn()
-                        break
+                cards_to_put = [player.hand[move] for move in moves]
 
-            except InvalidMoveError:
-                self._main_player.add_special_message('This is not '
-                                                      'a valid option')
+                if not self.stack.is_valid_combo(cards_to_put):
+                    raise InvalidTopCardError
+
+                self.handle_regular_turn(player, moves)
+                break
+
+            except ValueError:
+                self.main_player.set_error_message('This is not '
+                                                   'a valid option\n')
             except InvalidTopCardError:
-                self._main_player.add_special_message('You cannot put this '
-                                                      'card on top of the '
-                                                      'card pile\n')
+                self.main_player.set_error_message('You cannot put this '
+                                                   'card on top of the '
+                                                   'card pile\n')
+            except EmptyDeckError:
+                self.main_player.set_error_message('The deck is empty\n')
+                return 
+            except WrongCardIndexError:
+                self.main_player.set_error_message('Something went wrong.')
+
+            except InvalidStatusTransferError:
+                pass
+
+    def progress_turn(self, clear: bool = True):
+        if clear:
+            self.main_player.clear_special_message()
+            self.main_player.clear_error_message()
+        self.increment_turn()
+        self.handle_turn()
+
+    def handle_regular_turn(self, player, moves):
+        prev_player = self.prev_player(player)
+        next_player = self.next_player(player)
+        self.stack.add_cards_on_top(player.remove_cards(moves),
+                                    prev_player, next_player,
+                                    self.players)
+        # self.progress_turn()
+
+    def handle_pass(self, player: 'Player'):
+        card = self.deck.draw_card()
+
+        player.add_card(card)
+        # self.progress_turn()
+
+    def handle_effect_turn(self, player: 'Player', moves):
+        if len(moves) > 1 or moves[0] > len(player.hand):
+            raise InvalidStatusTransferError
+
+        if len(moves) == 1 and moves[0] == len(player.hand):
+            return
+
+        elif player.hand[moves[0]].value != player.allowed_card:
+            raise InvalidStatusTransferError
+
+        prev_player = self.prev_player(player)
+        next_player = self.next_player(player)
+        player.transfer_effect(next_player)
+        self.stack.add_cards_on_top(player.remove_cards(moves),
+                                    prev_player, next_player,
+                                    self.players)
+
+    def get_player_input(self) -> List[int]:
+        if isinstance(self.get_current_player(), (MainPlayer)):
+            sentence = self.ask_player_input()
+            moves = [int(card) - 1 for card in input(sentence).split(' ')]
+        else:
+            moves = [self.get_current_player().get_optimal_card(self.stack)]
+        return moves
+
+    def ask_player_input(self):
+        os.system('clear')
+        player = self._main_player
+
+        additional_information = (self._main_player.special_message
+                                  + self._main_player.error_message)
+        if self._main_player.special_message != '':
+            additional_information += '\n'
+
+        special_message = (' and draw a card' if
+                           player.status_effect == Status.NOEFFECT else '')
+
+        first_part = str(self.stack) + '\n'
+        second_part = self.get_current_player().get_hand_description()
+        third_part = (f'{len(player.hand)+1} '
+                      f'- Pass your turn{special_message}\n')
+        fourth_part = 'Your option is: '
+
+        sentence = (additional_information + first_part + second_part +
+                    third_part + fourth_part)
+
+        return sentence
 
     def handle_opponent_turn(self) -> None:
         opponent = self.get_current_player()
         card_index = opponent.get_optimal_card(self.stack)
         main_player = self._main_player
-        if card_index == -1:
-            opponent.add_card(self.deck.draw_card())
-            hand_size = len(opponent.hand)
-            main_player.add_special_message(f'{opponent.name} passes '
-                                            'and draws a card '
-                                            f'({hand_size} cards left)\n')
-            self.increment_turn()
-            self.handle_turn()
+        try:
+            if card_index == -1:
+                message = ''
+                if opponent.allowed_card == -1:
+                    card = self.deck.draw_card()
+                    message = 'and draws a card '
+
+                    opponent.add_card(card)
+                hand_size = len(opponent.hand)
+                main_player.add_special_message(f'{opponent.name} passes '
+                                                f'{message}'
+                                                f'({hand_size} cards left)\n')
+            else:
+                card = opponent.hand[card_index]
+                prev_player = self.prev_player(opponent)
+                next_player = self.next_player(opponent)
+                self.stack.add_cards_on_top(opponent.remove_cards([card_index]), # NOQA
+                                            prev_player, next_player,
+                                            self.players)
+                hand_size = len(opponent.hand)
+                main_player.add_special_message(f'{opponent.name} '
+                                                f'played {card}'
+                                                f'({hand_size} cards left)\n')
+        except EmptyDeckError:
+            main_player.set_error_message('The deck is empty\n')
+            return
+
+    def handle_special_turn(self):
+        playing = self.get_current_player()
+        if playing.status_effect == Status.BLOCKED:
+            message = ('' if playing.blocked_turns == 1
+                       else f' for {playing.blocked_turns} turns')
+
+            extra_message = ('You can play a 4 to transfer it to the next player\n' # NOQA
+                             if playing.blocked_turns == playing.total_blocked_turns # NOQA
+                             else '')
+
+            block_message = (f'{playing.name} was blocked{message}\n'
+                             if isinstance(playing, Opponent)
+                             else (f'You have been blocked{message}!\n'
+                                   f'{extra_message}'))
+
+            self.main_player.add_special_message(block_message)
+            playing.set_allowed_card(4)
+            # playing.remove_status_effect(Status.BLOCKED)
+            # self.increment_turn()
+            # self.handle_turn()
         else:
-            card = opponent.hand[card_index]
-            self.stack.add_card_on_top(opponent.remove_card(card_index))
-            hand_size = len(opponent.hand)
-            prev_player = self.left_of_player(opponent)
-            next_player = self.right_of_player(opponent)
-            self.stack.trigger_top_effect(prev_player, next_player)
-            main_player.add_special_message(f'{opponent.name} '
-                                            f'played {card}'
-                                            f'({hand_size} cards left)\n')
-            self.increment_turn()
-            self.handle_turn()
+            pass
+            # self.main_player.add_special_message("Something weird happened")
+            # playing.remove_status_effect()
+
+        # if playing.isinstance(MainPlayer):
+        #     self.handle_player_turn()
+        # else:
+        #     self.handle_opponent_turn()

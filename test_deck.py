@@ -1,20 +1,24 @@
 from deck import Deck
+from card_stack import CardStack
 
 
 def test_deck_init():
-    deck = Deck()
+    stack = CardStack()
+    deck = Deck(stack)
     assert len(deck.cards) == 52
 
 
 def test_deck_draw_card():
-    deck = Deck()
+    stack = CardStack()
+    deck = Deck(stack)
     assert len(deck.cards) == 52
     deck.draw_card()
     assert len(deck.cards) == 51
 
 
 def test_deck_refresh():
-    deck = Deck()
+    stack = CardStack()
+    deck = Deck(stack)
     assert len(deck.cards) == 52
     deck.draw_card()
     assert len(deck.cards) == 51

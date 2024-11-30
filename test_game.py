@@ -1,4 +1,4 @@
-from game import Game, InvalidOppNumError 
+from game import Game, InvalidOppNumError
 import pytest
 
 
