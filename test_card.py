@@ -20,4 +20,4 @@ def test_card_init_invaid_value():
 
 def test_card_name():
     two_of_spades = Card(Suits.SPADES, 2)
-    assert str(two_of_spades) == 'Two of Spades'
+    assert str(two_of_spades) == '2'+'\u2660'
