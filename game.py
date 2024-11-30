@@ -9,6 +9,7 @@ from typing import List
 from card import Suits
 from colorama import Fore, Style
 import os
+import sys
 
 
 class InvalidOppNumError(Exception):
@@ -46,8 +47,15 @@ class Game:
 
     :param turn_num: The current game's turn
     :type turn_num: int
+
+    :param winners: The players who have won the game
+    :type winners: List['Player']
     """
     def __init__(self, player_name: str, num_of_opponets: int) -> None:
+        """
+        Initialises the Game class
+        Throws error if the given nubmer of opponents is invalid
+        """
         if num_of_opponets < 1 or num_of_opponets > 3:
             raise InvalidOppNumError()
 
@@ -60,7 +68,8 @@ class Game:
         self._stack = CardStack()
         self._deck = Deck(self._stack)
 
-        self._deck.shuffle_deck()
+        while self._deck.cards[-1].is_special() is True:
+            self._deck.shuffle_deck()
 
         self._stack.add_cards_on_top([self._deck.draw_card()])
         for i in range(5):
@@ -89,29 +98,37 @@ class Game:
         return self._turn_num
 
     @property
-    def main_player(self):
+    def main_player(self) -> 'MainPlayer':
         return self._main_player
 
     @property
-    def winners(self):
+    def winners(self) -> List['Player']:
         return self._winners
 
     def increment_turn(self) -> None:
+        """Increments the turn counter by one"""
         self._turn_num += 1
 
     def get_current_player(self) -> 'Player':
+        """Returns the player whose turn it is"""
         return self.players[self.turn_num % len(self.players)]
 
     def get_player_index(self, player: 'Player') -> int:
+        """Returns the player's index based on an object"""
         for index, plr in enumerate(self.players):
             if player == plr:
                 return index
 
     def left_of_player(self, player: 'Player') -> 'Player':
+        """Returns the player left of a given player"""
         player_index = self.get_player_index(player)
         return self.players[(player_index-1) % len(self.players)]
 
     def prev_player(self, player: 'Player') -> 'Player':
+        """
+        Returns the previous player ignoring blocked players
+        and players who have won
+        """
         prev = self.left_of_player(player)
         while prev.status_effect == Status.BLOCKED or prev.won:
             index = self.players.index(prev)
@@ -119,10 +136,15 @@ class Game:
         return prev
 
     def right_of_player(self, player: 'Player') -> 'Player':
+        """Returns the player right of a given player"""
         player_index = self.get_player_index(player)
         return self.players[(player_index+1) % len(self.players)]
 
-    def next_player(self, player: 'Player'):
+    def next_player(self, player: 'Player') -> 'Player':
+        """
+        Returns the next player ignoring blocked player
+        and players who have won
+        """
         next = self.right_of_player(player)
         while next.status_effect == Status.BLOCKED or next.won:
             index = self.players.index(next)
@@ -130,6 +152,10 @@ class Game:
         return next
 
     def handle_turn(self) -> None:
+        """
+        Does all the chcecks to decide on any special turns
+        Reverts all turn-specific interactions after the turn is finished
+        """
         if len(self.winners) == len(self.players) - 1:
             self.finish_game()
             return
@@ -140,6 +166,7 @@ class Game:
             self.progress_turn(False)
             return
 
+        player.reset_said_makao()
         clear_messages = False
         if player.status_effect != Status.NOEFFECT:
             self.prepare_special_turn(player)
@@ -164,11 +191,11 @@ class Game:
             self.check_stack_forced_value()
 
         player.set_played_jack(False)
-        player.reset_said_makao()
 
         self.progress_turn(clear_messages)
 
-    def handle_player_turn(self, player) -> None:
+    def handle_player_turn(self, player: 'Player') -> None:
+        """A basic turn with no special effects"""
         while True:
             try:
                 moves = self.get_player_input(player)
@@ -214,7 +241,11 @@ class Game:
                                                    "card this turn\n")
                 pass
 
-    def progress_turn(self, clear: bool = True):
+    def progress_turn(self, clear: bool = True) -> None:
+        """
+        Starts a new turn 
+        and resets all the special messages for the main player
+        """
         if clear:
             self.main_player.clear_special_message()
             self.main_player.clear_error_message()
@@ -222,7 +253,8 @@ class Game:
         self.handle_turn()
 
     def handle_regular_turn(self, player: 'Player', moves,
-                            prev_player=None, next_player=None):
+                            prev_player=None, next_player=None) -> None:
+        """Handles the turn with basic Makao rules"""
         if prev_player is None:
             prev_player = self.prev_player(player)
         if next_player is None:
@@ -233,7 +265,6 @@ class Game:
             self.stack.add_cards_on_top(player.remove_cards(moves),
                                         prev_player, next_player,
                                         self.players)
-            
 
             self.add_opponent_status(player, cards)
 
@@ -260,7 +291,8 @@ class Game:
             player.increase_cards_to_draw(5)
             self.player_draw_cards(player) 
 
-    def handle_pass(self, player: 'Player'):
+    def handle_pass(self, player: 'Player') -> None:
+        """Handles what happens if a player passes"""
         card = self.deck.draw_card()
         player.add_card(card)
 
@@ -269,21 +301,24 @@ class Game:
         if isinstance(player, Opponent):
             self.add_opponent_status(player, -1)
 
-    def first_save(self, player: 'Player', card: 'Card'):
+    def first_save(self, player: 'Player', card: 'Card') -> None:
+        """Allows a player to save themselves with the card draw"""
         if self.stack.is_valid_combo([card]):
             decision = self.get_player_first_save_input(player, card)
             if decision == 1:
                 return True
         return False
 
-    def get_player_first_save_input(self, player, card):
+    def get_player_first_save_input(self, player, card) -> None:
+        """Returns the player's choice whether they want to be saved"""
         if isinstance(player, MainPlayer):
             ans = input(f'You drew a {card}. Play it? (y/n): ')
             return 1 if ans == 'y' else 0
         else:
             return 1
 
-    def handle_effect_turn(self, player: 'Player', moves):
+    def handle_effect_turn(self, player: 'Player', moves) -> None:
+        """Handles a turn with special card effects in play"""
         if len(moves) > 1 or moves[0] > len(player.hand):
             raise InvalidStatusTransferError
 
@@ -314,19 +349,37 @@ class Game:
         self.handle_regular_turn(player, moves, prev_player, next_player)
 
     def get_player_input(self, player) -> List[int]:
+        """Gets a player's input for their card choices"""
         if isinstance(player, MainPlayer):
             sentence = self.ask_player_input(player)
             sequence = input(sentence).split(' ')
-            if sequence[-1] == 'MAKAO':
-                player.set_said_makao()
+            if sequence[-1] in ['MAKAO' or 'STOP']:
+                self.handle_special_inputs(player, sequence[-1])
                 sequence.pop()
             moves = [int(card) - 1 for card in sequence]
         else:
             moves = [player.get_optimal_card(self.stack)]
         return moves
 
-    def ask_player_input(self, player):
-        os.system('clear')
+    def handle_special_inputs(self, player: 'Player', word: str) -> None:
+        """
+        Takes care of any potential special messages 
+        a player might want to send
+        """
+        if word == 'MAKAO':
+            player.set_said_makao()
+        if word == 'STOP':
+            for play in self.players:
+                if not play.said_makao and len(play.hand) == 1:
+                    play.increase_cards_to_draw(5)
+                    self.player_draw_cards(play)
+
+    def ask_player_input(self, player: 'Player') -> str:
+        """
+        Returns the main player the overview of the previous turn
+        and clears the terminal
+        """
+        self.clear_screen()
 
         additional_information = (self._main_player.special_message
                                   + self._main_player.error_message)
@@ -348,7 +401,8 @@ class Game:
 
         return sentence
 
-    def add_opponent_status(self, opponent, cards) -> None:
+    def add_opponent_status(self, opponent: 'Opponent', cards) -> None:
+        """Returns the special message to display to the main player"""
         main_player = self._main_player
         if cards == -1:
             message = ''
@@ -361,7 +415,6 @@ class Game:
                                             f'({hand_size} cards left)\n')
         else:
             cards_played = [str(card) for card in cards]
-
             cards_string = ''
             for index, card in enumerate(cards_played):
                 cards_string += card
@@ -369,11 +422,16 @@ class Game:
                     cards_string += ' and '
 
             hand_size = len(opponent.hand)
-            main_player.add_special_message(f'{opponent.name} '
+            makao = "MAKAO! " if opponent.said_makao and hand_size == 1 else ""
+            main_player.add_special_message(f'{makao}{opponent.name} '
                                             f'played {cards_string}'
                                             f'({hand_size} cards left)\n')
 
-    def prepare_special_turn(self, playing):
+    def prepare_special_turn(self, playing: 'Player') -> None:
+        """
+        Takes all the neccesarry measures before a turn
+        after a special card has been played
+        """
         if playing.status_effect == Status.BLOCKED:
             message = ('' if playing.blocked_turns == 1
                        else f' for {playing.blocked_turns} turns')
@@ -414,7 +472,17 @@ class Game:
             self.main_player.add_special_message(block_message)
             playing.set_allowed_cards([13])
 
-    def special_king_of_spades_interaction(self, player):
+    def clear_screen(self):
+        if sys.platform == 'win32':
+            os.system('cls')
+        elif sys.platform == 'linux' or sys.platform == 'darwin':
+            os.system('clear')
+
+    def special_king_of_spades_interaction(self, player: 'Player') -> None:
+        """
+        A special interaction that only happens after 
+        a king of spades has been played
+        """
         self.prepare_special_turn(player)
         moves = self.get_player_input(player)
         self.handle_effect_turn(player, moves)
@@ -423,6 +491,7 @@ class Game:
             print(self.ask_player_input(self.main_player))
 
     def get_player_ace_suit(self, player):
+        """Gets the player's decision after they have played an ace"""
         suits = ['\u2660', '\u2666', '\u2663', '\u2665']
         if isinstance(player, MainPlayer):
             suits_string = ''
@@ -439,7 +508,8 @@ class Game:
                                                  f'as the new suit{Style.RESET_ALL}\n') # NOQA
             return suit
 
-    def get_player_jack_card(self, player):
+    def get_player_jack_card(self, player: 'Player') -> int:
+        """Gets the player's decision after they have played a jack"""
         if isinstance(player, MainPlayer):
             value = int(input('Pick a value to force (from 5 to 10): '))
             return value
@@ -449,26 +519,30 @@ class Game:
                                                  f'as the forced card{Style.RESET_ALL}\n') # NOQA
             return value
 
-    def check_stack_forced_value(self):
+    def check_stack_forced_value(self) -> None:
+        """Checks if the forced card value shoiuld be reset"""
         for player in self.players:
             if (player.status_effect == Status.FORCESUIT and not player.won):
                 return
         self.stack.reset_forced_value()
     
-    def player_draw_cards(self, player: 'Player'):
+    def player_draw_cards(self, player: 'Player') -> None:
+        """Forces a player to draw all the cards they need to"""
         self.main_player.add_special_message(f'{player} drew {player.cards_to_draw} cards') # NOQA
         for _ in range(player.cards_to_draw):
             player.add_card(self.deck.draw_card())
         self.main_player.add_special_message(f' (at {len(player.hand)} cards) \n') # NOQA
         player.remove_status_effect()
 
-    def get_winner(self, player: 'Player'):
+    def get_winner(self, player: 'Player') -> None:
+        """Makes a player a winner after they've emptied their hand"""
         player.win_game()
         if player not in self.winners:
             self._winners.append(player)
 
-    def finish_game(self):
-        os.system('clear')
+    def finish_game(self) -> None:
+        """Finishes the game after n-1 players are winners"""
+        self.clear_screen()
         self.main_player.clear_error_message()
         self.main_player.clear_special_message()
         ends = ['st', 'nd', 'rd', 'th']
