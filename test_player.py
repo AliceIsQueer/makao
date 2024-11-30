@@ -45,4 +45,4 @@ def test_player_hand_description():
     two_of_spades = Card(Suits.SPADES, 2)
     queen_of_hearts = Card(Suits.HEARTS, 12)
     alice = Player("Alice", [two_of_spades, queen_of_hearts])
-    assert alice.get_hand_description() == 'Your hand consists of: \n1 - Two of Spades \n2 - Queen of Hearts \n'
+    assert alice.get_hand_description() == f'Your hand consists of: \n1 - {str(two_of_spades)} \n2 - {str(queen_of_hearts)} \n'

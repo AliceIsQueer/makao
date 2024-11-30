@@ -20,4 +20,4 @@ def test_card_stack_str():
     stack = CardStack()
     two_of_spades = Card(Suits.SPADES, 2)
     stack.add_card_on_top(two_of_spades)
-    assert str(stack) == 'The card at the top is Two of Spades'
+    assert str(stack) == f'The card at the top is {two_of_spades}'
