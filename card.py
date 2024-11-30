@@ -26,10 +26,10 @@ class Card:
     :param suit: The card's suit
     :type suit: int
 
-    :param value: Card's value from Two to Ace
+    :param value: Card's value from Two to Ace (Ace.val = 1)
     :type value: int
     """
-    def __init__(self, suit: int, value: int):
+    def __init__(self, suit: int, value: int) -> None:
         """
         Initialises the card class. Throws error if the card given is invalid
         """
@@ -49,6 +49,13 @@ class Card:
     @property
     def value(self) -> int:
         return self._value
+
+    def is_special(self) -> bool:
+        if self.value in [1, 2, 3, 4, 11, 12]:
+            return True
+        if self.value == 13 and self.suit in [Suits.HEARTS, Suits.SPADES]:
+            return True
+        return False
 
     def can_put_card(self, other: 'Card') -> bool:
         """
@@ -74,8 +81,7 @@ class Card:
         return (f'{names[self.value - 2]}{color + suits[self.suit - 1]}'
                 + Style.RESET_ALL)
 
-    def __eq__(self, other: 'Card'):
+    def __eq__(self, other: 'Card') -> bool:
+        """Checks if given cards are equal"""
         return self.suit == other.suit and self.value == other.value
 
-    # def trigger_card_effect(self, next_player: 'Player'):
-    #     pass
